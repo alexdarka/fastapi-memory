@@ -20,8 +20,7 @@ Higher-level helpers
 ---------------------
 On top of the re-exports, fastapi-memory adds a few small conveniences:
 
-- ``init_cache()``              -> one-line ``FmCacheManager`` setup (memory or Redis)
-- ``clear_cache()``              -> ``await FmCacheManager.clear()``
+- ``FmCacheManager``             -> wrapper with ``.init()`` / ``.get()`` / ``.set()`` / ``.clear()``
 - ``default_retry()``            -> the "3 attempts, exponential backoff, skip 4xx" policy
 - ``is_retryable_httpx_error``   -> the retry predicate behind ``default_retry``
 - ``cached_singleton``           -> ``@fm_lru(maxsize=1)`` for settings-style singletons
@@ -35,8 +34,6 @@ from .caching import (
     FmMemoryBackend,
     FmRedisBackend,
     memorize,
-    clear_cache,
-    init_cache,
 )
 from .config import cached_singleton, fm_lru
 from .http import FmResilientClient
@@ -49,7 +46,7 @@ from .resilience import (
     exponential_backoff,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # caching
@@ -57,8 +54,6 @@ __all__ = [
     "FmMemoryBackend",
     "FmRedisBackend",
     "memorize",
-    "init_cache",
-    "clear_cache",
     # resilience
     "retry",
     "stop_after_retries",

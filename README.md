@@ -30,10 +30,7 @@ helpers so you don't have to re-derive common patterns every time.
 ## Installation
 
 ```bash
-# Editable install (local development)
-pip install -e /path/to/fastapi-memory
-
-# From PyPI (once published)
+# From PyPI
 pip install fastapi-memory
 
 # With optional Redis cache backend support
@@ -44,7 +41,7 @@ pip install "fastapi-memory[redis]"
 
 | Module       | Provides                                                          | Adds                                                      |
 |--------------|-------------------------------------------------------------------|-----------------------------------------------------------|
-| `caching`    | `FmCacheManager`, `FmMemoryBackend`, `memorize`, `FmRedisBackend` | `init_cache()`, `clear_cache()`                           |
+| `caching`    | `FmCacheManager`, `FmMemoryBackend`, `memorize`, `FmRedisBackend` | `FmCacheManager.get()`, `.set()`, `.clear()`, `.init()`   |
 | `resilience` | `retry`, `stop_after_retries`, `exponential_backoff`, `retry_on_error` | `default_retry()`, `is_retryable_httpx_error()`           |
 | `config`     | `fm_lru`                                                          | `cached_singleton`                                        |
 | `http`       | —                                                                 | `FmResilientClient`                                       |
@@ -61,11 +58,11 @@ so `from fastapi_memory import <anything in the table>` works.
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi_memory import init_cache, clear_cache, memorize
+from fastapi_memory import FmCacheManager, FmMemoryBackend, memorize
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_cache(prefix="app-cache")  # in-memory (default)
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")  # in-memory
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -75,16 +72,25 @@ app = FastAPI(lifespan=lifespan)
 async def get_data():
     return {"data": "computed result"}
 
+# Manual get/set
+await FmCacheManager.set("my-key", {"data": "value"}, expire=60)
+cached = await FmCacheManager.get("my-key")
+
 @app.post("/api/cache/invalidate")
 async def invalidate_cache():
-    await clear_cache()
+    await FmCacheManager.clear()
     return {"ok": True}
 ```
 
 ### Switching to Redis later
 
 ```python
-init_cache(backend="redis", prefix="app-cache", redis_url="redis://localhost:6379")
+from fastapi_memory import FmCacheManager, FmRedisBackend
+
+FmCacheManager.init(
+    FmRedisBackend(redis_client),
+    prefix="app-cache",
+)
 ```
 
 ### Retry — exponential backoff with sensible defaults
@@ -129,7 +135,7 @@ config = get_settings()
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi_memory import FmResilientClient, init_cache
+from fastapi_memory import FmResilientClient, FmCacheManager, FmMemoryBackend
 
 upstream = FmResilientClient(
     base_url="http://api.example.com:8080",
@@ -139,7 +145,7 @@ upstream = FmResilientClient(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await upstream.start()
-    init_cache(prefix="app-cache")
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
     yield
     await upstream.aclose()
 
@@ -165,7 +171,7 @@ fastapi-memory/
 ├── LICENSE
 ├── fastapi_memory/
 │   ├── __init__.py          # re-exports everything
-│   ├── caching.py            # FmCacheManager, FmMemoryBackend, memorize, init_cache, clear_cache
+│   ├── caching.py            # FmCacheManager, FmMemoryBackend, memorize
 │   ├── resilience.py         # retry + default_retry, is_retryable_httpx_error
 │   ├── config.py             # fm_lru + cached_singleton
 │   └── http.py               # FmResilientClient

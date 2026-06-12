@@ -1,34 +1,29 @@
 """
 Thin convenience layer around fastapi-cache2.
 
-Re-exports the pieces you already use directly (``FmCacheManager``,
-``FmMemoryBackend``, ``memorize``) and adds two small helpers:
-
-- :func:`init_cache` - one-line setup for an in-memory or Redis-backed cache
-- :func:`clear_cache` - ``await FmCacheManager.clear()``
+Re-exports the pieces you already use directly (``FmMemoryBackend``,
+``memorize``) and adds :class:`FmCacheManager`, a wrapper with
+``.init()`` / ``.get()`` / ``.set()`` / ``.clear()`` methods.
 
 The Redis backend is optional. Install it with::
 
     pip install "fastapi-memory[redis]"
 
-If ``redis`` isn't installed, ``FmRedisBackend`` is simply ``None`` and
-``init_cache(backend="redis", ...)`` raises a clear ``RuntimeError``
-explaining how to fix it. The default ``backend="memory"`` works with no
-extra dependencies, exactly like the original::
+If ``redis`` isn't installed, ``FmRedisBackend`` is simply ``None``.
+The default ``backend="memory"`` works with no extra dependencies::
 
     FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi_cache.decorator import cache
 
 # Aliases under fastapi-memory namespace
-FmCacheManager = FastAPICache
 FmMemoryBackend = InMemoryBackend
 memorize = cache
 
@@ -44,67 +39,86 @@ except ImportError:  # pragma: no cover - redis extra not installed
     _REDIS_AVAILABLE = False
 
 
-def init_cache(
-    backend: str = "memory",
-    *,
-    prefix: str = "fastapi-cache",
-    redis_url: Optional[str] = None,
-) -> None:
+class FmCacheManager:
     """
-    Initialise :class:`FmCacheManager` with either an in-memory backend
-    (default) or a Redis backend.
+    Wrapper around FastAPICache providing ``.get()`` / ``.set()`` / ``.clear()``
+    / ``.init()`` methods.
 
-    Call this once during application startup, typically inside a
-    ``lifespan`` handler::
+    Example::
 
-        from contextlib import asynccontextmanager
-        from fastapi import FastAPI
-        from fastapi_memory import init_cache
+        from fastapi_memory import FmCacheManager, FmMemoryBackend
 
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            init_cache(prefix="app-cache")  # in-memory (default)
-            yield
+        FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
 
-        app = FastAPI(lifespan=lifespan)
+        # manual get/set
+        await FmCacheManager.set("my-key", {"data": "value"}, expire=60)
+        cached = await FmCacheManager.get("my-key")
 
-    For Redis, pass ``backend="redis"`` and a connection URL::
-
-        init_cache(backend="redis", prefix="app-cache", redis_url="redis://localhost:6379")
-
-    Parameters
-    ----------
-    backend:
-        ``"memory"`` (default) or ``"redis"``.
-    prefix:
-        Cache-key prefix, passed straight through to ``FmCacheManager.init``.
-    redis_url:
-        Connection string for Redis, e.g. ``redis://localhost:6379``.
-        Required when ``backend="redis"``.
+        # clear entire cache
+        await FmCacheManager.clear()
     """
-    if backend == "memory":
-        FmCacheManager.init(FmMemoryBackend(), prefix=prefix)
-        return
 
-    if backend == "redis":
-        if not _REDIS_AVAILABLE:
-            raise RuntimeError(
-                "Redis backend requested but the 'redis' package is not "
-                "installed. Install it with: pip install fastapi-memory[redis]"
-            )
-        if not redis_url:
-            raise ValueError("redis_url is required when backend='redis'")
+    @staticmethod
+    def init(
+        backend: Any,
+        *,
+        prefix: str = "fastapi-cache",
+        expire: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialise the underlying cache backend."""
+        FastAPICache.init(backend, prefix=prefix, expire=expire, **kwargs)
 
-        client = _redis_from_url(redis_url, encoding="utf8", decode_responses=False)
-        FmCacheManager.init(FmRedisBackend(client), prefix=prefix)
-        return
+    @staticmethod
+    async def get(key: str) -> Optional[Any]:
+        """
+        Retrieve a cached value by key.
 
-    raise ValueError(f"Unknown backend {backend!r}, expected 'memory' or 'redis'")
+        Returns ``None`` if the key is not found or has expired.
+        The key is automatically prefixed with the prefix set during ``init()``.
+        """
+        backend = FastAPICache.get_backend()
+        coder = FastAPICache.get_coder()
+        prefix = FastAPICache.get_prefix()
+        full_key = f"{prefix}:{key}"
+        raw = await backend.get(full_key)
+        if raw is None:
+            return None
+        return coder.decode(raw)
 
+    @staticmethod
+    async def set(
+        key: str,
+        value: Any,
+        *,
+        expire: Optional[int] = None,
+    ) -> None:
+        """
+        Store a value in the cache.
 
-async def clear_cache() -> None:
-    """Clear the entire cache - thin wrapper around ``await FmCacheManager.clear()``."""
-    await FmCacheManager.clear()
+        Parameters
+        ----------
+        key:
+            Cache key (prefix is added automatically).
+        value:
+            The value to cache (must be serializable by the configured coder).
+        expire:
+            TTL in seconds. ``None`` uses the default expiry set during ``init()``.
+        """
+        backend = FastAPICache.get_backend()
+        coder = FastAPICache.get_coder()
+        prefix = FastAPICache.get_prefix()
+        full_key = f"{prefix}:{key}"
+        encoded = coder.encode(value)
+        await backend.set(full_key, encoded, expire=expire)
+
+    @staticmethod
+    async def clear(
+        namespace: Optional[str] = None,
+        key: Optional[str] = None,
+    ) -> int:
+        """Clear the entire cache, or a specific namespace/key."""
+        return await FastAPICache.clear(namespace=namespace, key=key)
 
 
 __all__ = [
@@ -112,6 +126,4 @@ __all__ = [
     "FmMemoryBackend",
     "FmRedisBackend",
     "memorize",
-    "init_cache",
-    "clear_cache",
 ]

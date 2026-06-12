@@ -8,20 +8,39 @@ This page documents every public export from `fastapi-memory`.
 
 ### `FmCacheManager`
 
-The main cache manager (wraps the underlying cache implementation).
+The main cache manager. Provides `.init()`, `.get()`, `.set()`, `.clear()`
+methods for cache operations.
 
 ```python
-from fastapi_memory import FmCacheManager
+from fastapi_memory import FmCacheManager, FmMemoryBackend
 ```
 
-Use `init_cache()` (below) to initialise it, then use `FmCacheManager` for
-direct access when needed (e.g. `FmCacheManager.get(...)`, `.set(...)`).
+```python
+# Initialise (call once during startup)
+FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
+
+# Get a cached value (returns None if not found)
+cached = await FmCacheManager.get("loaderReport:SNF")
+
+# Store a value in the cache
+await FmCacheManager.set("my-key", {"data": "value"}, expire=60)
+
+# Clear the entire cache
+await FmCacheManager.clear()
+```
+
+**Methods:**
+
+- `FmCacheManager.init(backend, prefix=..., expire=...)` — Initialise the cache backend.
+- `FmCacheManager.get(key)` — Retrieve a cached value by key. Returns `None` if not found.
+- `FmCacheManager.set(key, value, expire=...)` — Store a value. `expire` is TTL in seconds.
+- `FmCacheManager.clear(namespace=..., key=...)` — Clear entire cache or a specific namespace/key.
 
 ---
 
 ### `FmMemoryBackend`
 
-In-memory cache backend. Used as the default when calling `init_cache()`.
+In-memory cache backend. Used as the default when calling `FmCacheManager.init()`.
 
 ```python
 from fastapi_memory import FmMemoryBackend
@@ -65,39 +84,6 @@ async def get_data():
 
 **Parameters:**
 - `expire` *(int/float, optional)*: TTL in seconds. `None` means no expiry.
-
----
-
-### `init_cache`
-
-One-line setup for the cache, called during application startup.
-
-```python
-from fastapi_memory import init_cache
-
-# In-memory (default)
-init_cache(prefix="app-cache")
-
-# Redis
-init_cache(backend="redis", prefix="app-cache", redis_url="redis://localhost:6379")
-```
-
-**Parameters:**
-- `backend` *(str)*: `"memory"` (default) or `"redis"`.
-- `prefix` *(str)*: Cache key prefix.
-- `redis_url` *(str, optional)*: Redis connection string, required when `backend="redis"`.
-
----
-
-### `clear_cache`
-
-Async function to clear the entire cache.
-
-```python
-from fastapi_memory import clear_cache
-
-await clear_cache()
-```
 
 ---
 
@@ -258,7 +244,7 @@ automatic retries.
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi_memory import FmResilientClient, init_cache
+from fastapi_memory import FmResilientClient, FmCacheManager, FmMemoryBackend
 
 upstream = FmResilientClient(
     base_url="http://api.example.com:8080",
@@ -268,7 +254,7 @@ upstream = FmResilientClient(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await upstream.start()
-    init_cache(prefix="app-cache")
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
     yield
     await upstream.aclose()
 
@@ -299,4 +285,3 @@ async def get_data():
 ```python
 async with FmResilientClient(...) as client:
     ...
-```

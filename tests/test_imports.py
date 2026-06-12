@@ -2,8 +2,8 @@
 Smoke tests:
 
 - every name described in the README can be imported from `fastapi_memory`
-- the small helpers (`cached_singleton`, `default_retry`, `init_cache` /
-  `clear_cache`, `FmResilientClient`) behave as documented.
+- the small helpers (`cached_singleton`, `default_retry`, `FmResilientClient`)
+  behave as documented.
 
 Run with:
 
@@ -37,8 +37,6 @@ def test_top_level_reexports_exist():
     assert fm.fm_lru is not None
 
     # extra helpers
-    assert fm.init_cache is not None
-    assert fm.clear_cache is not None
     assert fm.default_retry is not None
     assert fm.is_retryable_httpx_error is not None
     assert fm.cached_singleton is not None
@@ -114,8 +112,8 @@ def test_default_retry_does_not_retry_4xx():
 
 
 def test_init_cache_memory_and_clear_cache():
-    fm.init_cache(prefix="test-cache")
-    asyncio.run(fm.clear_cache())
+    fm.FmCacheManager.init(fm.FmMemoryBackend(), prefix="test-cache")
+    asyncio.run(fm.FmCacheManager.clear())
 
 
 def test_resilient_client_get_json(monkeypatch):

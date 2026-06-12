@@ -8,16 +8,16 @@ This guide walks through the main usage patterns for `fastapi-memory`.
 
 ### In-memory cache (default)
 
-The simplest setup — just call `init_cache()` once during startup:
+The simplest setup — just call `FmCacheManager.init()` once during startup:
 
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi_memory import init_cache, clear_cache
+from fastapi_memory import FmCacheManager, FmMemoryBackend
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_cache(prefix="app-cache")  # in-memory by default
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")  # in-memory
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -31,13 +31,14 @@ Install the Redis extra:
 pip install "fastapi-memory[redis]"
 ```
 
-Then pass `backend="redis"`:
+Then use `FmRedisBackend`:
 
 ```python
-init_cache(
-    backend="redis",
+from fastapi_memory import FmCacheManager, FmRedisBackend
+
+FmCacheManager.init(
+    FmRedisBackend(redis_client),
     prefix="app-cache",
-    redis_url="redis://localhost:6379",
 )
 ```
 
@@ -53,14 +54,33 @@ async def get_data():
     ...
 ```
 
+### Manual cache get/set
+
+Use `FmCacheManager.get()` and `.set()` for direct cache access (e.g. pre-warming
+or reading specific keys):
+
+```python
+from fastapi_memory import FmCacheManager, FmMemoryBackend
+
+FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
+
+# Store a value
+await FmCacheManager.set("loaderReport:SNF", normalized_data, expire=3600)
+
+# Retrieve it (returns None if not found)
+cached = await FmCacheManager.get("loaderReport:SNF")
+if cached is not None:
+    return cached
+```
+
 ### Clearing the cache
 
 ```python
-from fastapi_memory import clear_cache
+from fastapi_memory import FmCacheManager
 
 @app.post("/api/cache/invalidate")
 async def invalidate_cache():
-    await clear_cache()
+    await FmCacheManager.clear()
     return {"ok": True}
 ```
 
@@ -157,7 +177,7 @@ automatic retries, and JSON response helpers.
 ```python
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi_memory import FmResilientClient, init_cache
+from fastapi_memory import FmResilientClient, FmCacheManager, FmMemoryBackend
 
 upstream = FmResilientClient(
     base_url="http://api.example.com:8080",
@@ -167,7 +187,7 @@ upstream = FmResilientClient(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await upstream.start()
-    init_cache(prefix="app-cache")
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
     yield
     await upstream.aclose()
 
@@ -212,8 +232,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi_memory import (
     FmResilientClient,
-    init_cache,
-    clear_cache,
+    FmCacheManager,
+    FmMemoryBackend,
     memorize,
     default_retry,
     cached_singleton,
@@ -234,7 +254,7 @@ upstream = FmResilientClient(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_cache(prefix="app-cache")
+    FmCacheManager.init(FmMemoryBackend(), prefix="app-cache")
     await upstream.start()
     yield
     await upstream.aclose()
@@ -249,5 +269,5 @@ async def get_data():
 
 @app.post("/api/cache/invalidate")
 async def invalidate_cache():
-    await clear_cache()
+    await FmCacheManager.clear()
     return {"ok": True}
